@@ -90,3 +90,34 @@ for nomer, stroka in enumerate(tekst.split("\n"), 1):
 
     poezda.append((pribytie, otpravlenie, imya, f"{ch1:02d}:{m1:02d}", f"{ch2:02d}:{m2:02d}"))
 
+# --- распределение по платформам ---
+poezda.sort(key=lambda p: p[0])     # сортировка устойчивая: при равном прибытии порядок ввода
+
+zanyatye = []     # куча (когда освободится, номер платформы)
+svobodnye = []    # куча номеров свободных платформ
+platformy = []    # для каждой платформы - список поездов
+
+for pribytie, otpravlenie, imya, tpr, totp in poezda:
+    # платформа освобождается в момент отправления: промежуток [прибытие, отправление)
+    while zanyatye and zanyatye[0][0] <= pribytie:
+        konec, nomerpl = heapq.heappop(zanyatye)
+        heapq.heappush(svobodnye, nomerpl)
+
+    if svobodnye:
+        nomerpl = heapq.heappop(svobodnye)      # свободная платформа с наименьшим номером
+    else:
+        nomerpl = len(platformy)                # свободных нет - новая платформа
+        platformy.append([])
+
+    platformy[nomerpl].append(f"{imya} ({tpr}–{totp})")
+    heapq.heappush(zanyatye, (otpravlenie, nomerpl))
+
+# --- вывод ---
+stroki = [f"Минимальное количество платформ: {len(platformy)}"]
+if platformy:
+    stroki.append("")
+    stroki.append("Распределение по платформам:")
+    for i, spisok in enumerate(platformy, 1):
+        stroki.append(f"  Платформа {i}: " + ", ".join(spisok))
+
+sys.stdout.buffer.write(("\n".join(stroki) + "\n").encode("utf-8"))
