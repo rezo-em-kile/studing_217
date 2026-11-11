@@ -32,9 +32,9 @@ class ChainingMap:
         self.size = 0
         for bucket in old_buckets:
             for k, v in bucket:
-                self.set(k, v)
+                self.insert(k, v)
 
-    def set(self, key: str, value: str) -> None:
+    def insert(self, key: str, value: str) -> None:
         idx = self._bucket_idx(key)
         bucket = self.buckets[idx]
         for i, (k, _) in enumerate(bucket):
@@ -213,7 +213,7 @@ def load_catalog(path: str) -> ChainingMap:
         if catalog.contains(key):
             print(f"Ошибка: строка {line_no}: дублирующийся артикул '{key}'", file=sys.stderr)
             sys.exit(1)
-        catalog.set(key, val)
+        catalog.insert(key, val)
 
     return catalog
 
