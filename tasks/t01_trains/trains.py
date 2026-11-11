@@ -89,8 +89,71 @@ def parse_schedule(lines: list[str]) -> list[Train]:
     return trains
 
 
+def allocate_platforms(trains: list[Train]) -> list[list[Train]]:
+    sorted_trains = sorted(trains, key=lambda t: (t.arr_min, t.order))
+    platforms: list[list[Train]] = []
+    platform_free_time: list[int] = []
+
+    for train in sorted_trains:
+        placed = False
+        for i, free_time in enumerate(platform_free_time):
+            if free_time <= train.arr_min:
+                platforms[i].append(train)
+                platform_free_time[i] = train.dep_min
+                placed = True
+                break
+        if not placed:
+            platforms.append([train])
+            platform_free_time.append(train.dep_min)
+
+    return platforms
+
+
+def format_report(platforms: list[list[Train]]) -> str:
+    if not platforms:
+        return "Минимальное количество платформ: 0"
+
+    lines = [
+        f"Минимальное количество платформ: {len(platforms)}",
+        "",
+        "Распределение по платформам:",
+    ]
+    for idx, p_trains in enumerate(platforms, 1):
+        items = ", ".join(f"{t.name} ({t.arr_str}\u2013{t.dep_str})" for t in p_trains)
+        lines.append(f"  Платформа {idx}: {items}")
+
+    return "\n".join(lines)
+
+
 def main() -> int:
-    return 0
+    args = sys.argv[1:]
+    if len(args) > 1:
+        print("Ошибка: слишком много аргументов командной строки", file=sys.stderr)
+        return 2
+
+    try:
+        if len(args) == 1:
+            filename = args[0]
+            try:
+                with open(filename, "r", encoding="utf-8-sig") as f:
+                    lines = f.readlines()
+            except OSError as e:
+                print(f"Ошибка: не удалось открыть файл '{filename}': {e}", file=sys.stderr)
+                return 1
+        else:
+            text = sys.stdin.read()
+            if text.startswith("\ufeff"):
+                text = text[1:]
+            lines = text.splitlines()
+
+        trains = parse_schedule(lines)
+        platforms = allocate_platforms(trains)
+        print(format_report(platforms))
+        return 0
+
+    except ValueError as e:
+        print(f"Ошибка: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":
