@@ -2,6 +2,7 @@
 
 Запуск: python trains.py schedule.txt  или  python trains.py < schedule.txt
 """
+import heapq
 import re
 import sys
 
@@ -71,3 +72,77 @@ def parse_schedule(lines):
         seen_names.add(name)
         trains.append((name, arrival, end, format_time(arrival), format_time(departure)))
     return trains
+
+
+def assign_platforms(trains):
+    """Ставит поезда по порядку прибытия на свободную платформу с наименьшим номером."""
+    order = sorted(range(len(trains)), key=lambda i: (trains[i][1], i))
+    platforms = []
+    free = []
+    busy = []
+    for index in order:
+        _, arrival, end, _, _ = trains[index]
+        while busy and busy[0][0] <= arrival:
+            heapq.heappush(free, heapq.heappop(busy)[1])
+        if free:
+            platform = heapq.heappop(free)
+        else:
+            platform = len(platforms)
+            platforms.append([])
+        platforms[platform].append(trains[index])
+        heapq.heappush(busy, (end, platform))
+    return platforms
+
+
+def build_report(trains):
+    platforms = assign_platforms(trains)
+    lines = [f"Минимальное количество платформ: {len(platforms)}"]
+    if platforms:
+        lines.append("")
+        lines.append("Распределение по платформам:")
+        for number, platform in enumerate(platforms, 1):
+            items = ", ".join(f"{name} ({arr}–{dep})" for name, _, _, arr, dep in platform)
+            lines.append(f"  Платформа {number}: {items}")
+    return lines
+
+
+def read_input(args):
+    if len(args) > 1:
+        print("Ошибка: слишком много аргументов, использование: python trains.py [schedule.txt]",
+              file=sys.stderr)
+        sys.exit(2)
+    if args:
+        try:
+            with open(args[0], encoding="utf-8-sig") as file:
+                return file.read()
+        except OSError as error:
+            raise ScheduleError(f"не удалось открыть файл {args[0]}: {error.strerror}") from None
+        except UnicodeDecodeError:
+            raise ScheduleError(f"файл {args[0]} не в кодировке UTF-8") from None
+    data = sys.stdin.buffer.read() if hasattr(sys.stdin, "buffer") else sys.stdin.read().encode("utf-8")
+    try:
+        return data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise ScheduleError("стандартный ввод не в кодировке UTF-8") from None
+
+
+def use_utf8_output():
+    """В консоли Windows по умолчанию не UTF-8 - символ «–» иначе не напечатается."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure") and (stream.encoding or "").lower() not in ("utf-8", "utf8"):
+            stream.reconfigure(encoding="utf-8")
+
+
+def main():
+    use_utf8_output()
+    try:
+        trains = parse_schedule(read_input(sys.argv[1:]).splitlines())
+    except ScheduleError as error:
+        print(f"Ошибка: {error}", file=sys.stderr)
+        sys.exit(1)
+    for line in build_report(trains):
+        print(line)
+
+
+if __name__ == "__main__":
+    main()
