@@ -248,6 +248,14 @@ def format_trace(events):
     return lines
 
 
+def export_csv(stats, path):
+    """ЧЕРНОВИК: выгрузка статистики по кассирам в CSV (--csv ФАЙЛ). Не подключено, не проверено."""
+    with open(path, "w", encoding="utf-8") as file:
+        print("кассир;обслужено;загрузка", file=file)
+        for number, (served, load) in enumerate(stats["cashiers"], 1):
+            print(f"{number};{served};{load:.3f}", file=file)
+
+
 def use_utf8_streams():
     for stream in (sys.stdin, sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure") and (stream.encoding or "").lower() not in ("utf-8", "utf8"):
