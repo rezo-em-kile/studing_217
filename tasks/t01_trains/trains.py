@@ -1,72 +1,90 @@
-def time_to_minutes(time_str):
+import sys
+
+
+def error(msg, code=1):
+    print(f"Ошибка: {msg}", file=sys.stderr)
+    sys.exit(code)
+
+
+def parse_time(time_str, allow_24, line_num):
     parts = time_str.strip().split(":")
-    hours = int(parts[0])
-    minutes = int(parts[1])
+    if len(parts) != 2:
+        error(f"строка {line_num}: неверный формат времени '{time_str}'")
+
+    h_str, m_str = parts
+
+    if not h_str.isdigit() or len(h_str) > 2:
+        error(f"строка {line_num}: некорректные часы '{h_str}'")
+    if not m_str.isdigit() or len(m_str) != 2:
+        error(f"строка {line_num}: некорректные минуты '{m_str}'")
+
+    hours = int(h_str)
+    minutes = int(m_str)
+
+    if minutes > 59:
+        error(f"строка {line_num}: минуты не могут быть больше 59")
+
+    if hours == 24 and minutes == 0 and allow_24:
+        return 24 * 60, "24:00"
+
+    if hours > 23:
+        error(f"строка {line_num}: часы не могут быть больше 23")
+
     return hours * 60 + minutes, f"{hours:02d}:{minutes:02d}"
 
 
-def parse_line(line):
-    name, rest = line.split(":", 1)
-    name = name.strip()
-
-    arr_part, dep_part = rest.split(",", 1)
-
-    arr_str = arr_part.strip().split()[-1]
-    dep_str = dep_part.strip().split()[-1]
-
-    arr_min, arr_fmt = time_to_minutes(arr_str)
-    dep_min, dep_fmt = time_to_minutes(dep_str)
-
-    if dep_min < arr_min:
-        dep_min += 24 * 60
-
-    return arr_min, dep_min, name, arr_fmt, dep_fmt
-
-
-def main():
+def parse_lines(lines):
     trains = []
+    seen_names = set()
 
-    while True:
-        try:
-            line = input().strip()
-        except EOFError:
-            break
-
+    for line_num, raw_line in enumerate(lines, start=1):
+        line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
 
-        trains.append(parse_line(line))
+        if ":" not in line:
+            error(f"строка {line_num}: отсутствует двоеточие после названия поезда")
 
-    if not trains:
-        print("Минимальное количество платформ: 0")
-        return
+        name, rest = line.split(":", 1)
+        name = name.strip()
+        if not name:
+            error(f"строка {line_num}: пустое название поезда")
 
-    trains.sort(key=lambda item: item[0])
+        if name in seen_names:
+            error(f"строка {line_num}: повторяющееся название поезда '{name}'")
+        seen_names.add(name)
 
-    platform_free_time = []
-    platform_trains = []
+        if "," not in rest:
+            error(f"строка {line_num}: отсутствует запятая между прибытием и отправлением")
 
-    for arr_min, dep_min, name, arr_fmt, dep_fmt in trains:
-        placed = False
+        arr_part, dep_part = rest.split(",", 1)
+        arr_tokens = arr_part.strip().split()
+        dep_tokens = dep_part.strip().split()
 
-        for i in range(len(platform_free_time)):
-            if platform_free_time[i] <= arr_min:
-                platform_free_time[i] = dep_min
-                platform_trains[i].append(f"{name} ({arr_fmt}–{dep_fmt})")
-                placed = True
-                break
+        if len(arr_tokens) != 2:
+            error(f"строка {line_num}: неверный блок прибытия")
+        arr_word, arr_time = arr_tokens
+        if arr_word.lower() != "прибытие":
+            error(f"строка {line_num}: ожидалось слово 'прибытие'")
 
-        if not placed:
-            platform_free_time.append(dep_min)
-            platform_trains.append([f"{name} ({arr_fmt}–{dep_fmt})"])
+        if len(dep_tokens) != 2:
+            error(f"строка {line_num}: неверный блок отправления")
+        dep_word, dep_time = dep_tokens
+        if dep_word.lower() != "отправление":
+            error(f"строка {line_num}: ожидалось слово 'отправление'")
 
-    print(f"Минимальное количество платформ: {len(platform_trains)}")
-    print()
-    print("Распределение по платформам:")
-    for i in range(len(platform_trains)):
-        trains_list = ", ".join(platform_trains[i])
-        print(f"Платформа {i + 1}: {trains_list}")
+        arr_min, arr_fmt = parse_time(arr_time, allow_24=False, line_num=line_num)
+        dep_min, dep_fmt = parse_time(dep_time, allow_24=True, line_num=line_num)
 
+        if dep_min < arr_min:
+            dep_min += 24 * 60
 
-if __name__ == "__main__":
-    main()
+        stay = dep_min - arr_min
+        if stay == 0:
+            error(f"строка {line_num}: время отправления совпадает с прибытием для поезда '{name}'")
+        if stay > 120:
+            error(f"строка {line_num}: поезд '{name}' стоит больше 2 часов")
+
+        trains.append((arr_min, dep_min, name, arr_fmt, dep_fmt))
+
+    return trains
