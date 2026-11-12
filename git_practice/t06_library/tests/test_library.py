@@ -63,7 +63,6 @@ def test_borrow_same_book_twice(lib):
         lib.borrow("111", "Иванов", 2)
 
 
-@pytest.mark.skip(reason="временно отключён")
 def test_cannot_borrow_more_than_copies(lib):
     lib.borrow("222", "Иванов", 1)
     with pytest.raises(LibraryError):
