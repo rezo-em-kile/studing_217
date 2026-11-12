@@ -7,28 +7,29 @@ def error(msg, code=1):
 
 
 def parse_time(time_str, allow_24, line_num):
-    parts = time_str.strip().split(":")
+    raw = time_str.strip()
+    parts = raw.split(":")
     if len(parts) != 2:
-        error(f"строка {line_num}: неверный формат времени '{time_str}'")
+        error(f"строка {line_num}: неверный формат времени '{raw}'")
 
     h_str, m_str = parts
 
     if not h_str.isdigit() or len(h_str) > 2:
-        error(f"строка {line_num}: некорректные часы '{h_str}'")
+        error(f"строка {line_num}: неверное время '{raw}'")
     if not m_str.isdigit() or len(m_str) != 2:
-        error(f"строка {line_num}: некорректные минуты '{m_str}'")
+        error(f"строка {line_num}: неверное время '{raw}'")
 
     hours = int(h_str)
     minutes = int(m_str)
 
     if minutes > 59:
-        error(f"строка {line_num}: минуты не могут быть больше 59")
+        error(f"строка {line_num}: неверное время '{raw}'")
 
     if hours == 24 and minutes == 0 and allow_24:
         return 24 * 60, "24:00"
 
     if hours > 23:
-        error(f"строка {line_num}: часы не могут быть больше 23")
+        error(f"строка {line_num}: неверное время '{raw}'")
 
     return hours * 60 + minutes, f"{hours:02d}:{minutes:02d}"
 
@@ -122,27 +123,28 @@ def main():
 
     platform_free_time = []
     platform_trains = []
+    min_free_time = None
 
     for arr_min, dep_min, name, arr_fmt, dep_fmt in trains:
-        placed = False
-
-        for i in range(len(platform_free_time)):
-            if platform_free_time[i] <= arr_min:
-                platform_free_time[i] = dep_min
-                platform_trains[i].append(f"{name} ({arr_fmt}\u2013{dep_fmt})")
-                placed = True
-                break
-
-        if not placed:
+        if min_free_time is not None and min_free_time <= arr_min:
+            for i in range(len(platform_free_time)):
+                if platform_free_time[i] <= arr_min:
+                    platform_free_time[i] = dep_min
+                    platform_trains[i].append(f"{name} ({arr_fmt}\u2013{dep_fmt})")
+                    break
+            min_free_time = min(platform_free_time)
+        else:
             platform_free_time.append(dep_min)
             platform_trains.append([f"{name} ({arr_fmt}\u2013{dep_fmt})"])
+            if min_free_time is None or dep_min < min_free_time:
+                min_free_time = dep_min
 
     print(f"Минимальное количество платформ: {len(platform_trains)}")
     print()
     print("Распределение по платформам:")
     for i in range(len(platform_trains)):
         trains_list = ", ".join(platform_trains[i])
-        print(f"Платформа {i + 1}: {trains_list}")
+        print(f"  Платформа {i + 1}: {trains_list}")
 
 
 if __name__ == "__main__":
