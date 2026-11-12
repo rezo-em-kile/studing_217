@@ -1,0 +1,9 @@
+time 14:20
+session S1 19:00
+book S1 3:5 Иванов
+book S1 3:5 Петров
+time 14:22
+cancel 1 Иванов
+book S1 3:5 Петров
+show S1
+history S1
