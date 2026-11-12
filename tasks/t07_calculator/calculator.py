@@ -29,7 +29,7 @@ HELP = """Команды:
   exit, quit                 выход"""
 
 ERRORS = (calc_math.MathError, calc_convert.ConvertError, calc_matrix.MatrixError, calc_logic.LogicError,
-          ArithmeticError, ValueError)
+          ArithmeticError, ValueError, RecursionError)
 
 
 class Calculator:
@@ -116,6 +116,9 @@ class Calculator:
             return [f"ОШИБКА: {error}"], True
         try:
             answer, text = self.calculate(line)
+        except RecursionError:
+            self.history.append((line, None))
+            return ["ОШИБКА: слишком глубокая вложенность скобок или операций"], True
         except ERRORS as error:
             self.history.append((line, None))
             return [f"ОШИБКА: {error}"], True
