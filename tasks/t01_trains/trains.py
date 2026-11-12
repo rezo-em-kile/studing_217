@@ -88,3 +88,62 @@ def parse_lines(lines):
         trains.append((arr_min, dep_min, name, arr_fmt, dep_fmt))
 
     return trains
+
+
+def get_arrival_time(train):
+    arr_min, _, _, _, _ = train
+    return arr_min
+
+
+def main():
+    if len(sys.argv) > 2:
+        error("слишком много аргументов командной строки", code=2)
+
+    if len(sys.argv) == 2:
+        _, filename = sys.argv
+        try:
+            with open(filename, encoding="utf-8") as f:
+                trains = parse_lines(f)
+        except OSError:
+            error(f"не удалось открыть файл '{filename}'")
+        except UnicodeDecodeError:
+            error(f"файл '{filename}' должен быть в кодировке UTF-8")
+    else:
+        try:
+            trains = parse_lines(sys.stdin)
+        except UnicodeDecodeError:
+            error("входные данные должны быть в кодировке UTF-8")
+
+    if not trains:
+        print("Минимальное количество платформ: 0")
+        return
+
+    trains.sort(key=get_arrival_time)
+
+    platform_free_time = []
+    platform_trains = []
+
+    for arr_min, dep_min, name, arr_fmt, dep_fmt in trains:
+        placed = False
+
+        for i in range(len(platform_free_time)):
+            if platform_free_time[i] <= arr_min:
+                platform_free_time[i] = dep_min
+                platform_trains[i].append(f"{name} ({arr_fmt}\u2013{dep_fmt})")
+                placed = True
+                break
+
+        if not placed:
+            platform_free_time.append(dep_min)
+            platform_trains.append([f"{name} ({arr_fmt}\u2013{dep_fmt})"])
+
+    print(f"Минимальное количество платформ: {len(platform_trains)}")
+    print()
+    print("Распределение по платформам:")
+    for i in range(len(platform_trains)):
+        trains_list = ", ".join(platform_trains[i])
+        print(f"Платформа {i + 1}: {trains_list}")
+
+
+if __name__ == "__main__":
+    main()
