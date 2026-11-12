@@ -136,7 +136,7 @@ def tokenize(text):
     return tokens
 
 
-FUNCTIONS = ("sqrt", "ln", "log", "abs", "sin", "cos", "tan", "exp")
+FUNCTIONS = ("sqrt", "ln", "log", "abs", "sin", "cos", "tan", "exp", "asin", "acos", "atan")
 
 
 class Parser:
@@ -309,6 +309,13 @@ def call(name, args):
             if base <= 0 or base == 1:
                 raise MathError("основание логарифма должно быть положительным и не равным 1")
             return check_float(math.log(x) / math.log(base))
+        if name in ("asin", "acos"):
+            # доработка по просьбе заказчика: обратные тригонометрические функции (в работе)
+            if not -1 <= x <= 1:
+                raise MathError(f"{name} определён только для чисел от -1 до 1")
+            return check_float(math.asin(x) if name == "asin" else math.acos(x))
+        if name == "atan":
+            return check_float(math.atan(x))
         if name == "exp":
             return check_float(math.exp(x))
         if name == "tan" and abs(math.cos(x)) < TRIG_ZERO:
