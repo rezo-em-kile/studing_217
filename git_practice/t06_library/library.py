@@ -42,7 +42,7 @@ class Library:
         return self._copies[isbn] - on_loan
 
     def find(self, query):
-        query = query.strip()
+        query = query.strip().lower()
         return sorted(isbn for isbn, title in self._titles.items() if query in title.lower())
 
     def borrow(self, isbn, reader, day):

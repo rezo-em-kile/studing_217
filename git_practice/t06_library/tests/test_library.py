@@ -40,7 +40,6 @@ def test_find_lowercase_query(lib):
     assert lib.find("гарри") == ["111"]
 
 
-@pytest.mark.skip(reason="временно: разберусь позже")
 def test_find_ignores_case(lib):
     assert lib.find("Гарри") == ["111"]
     assert lib.find("  МАСТЕР ") == ["222"]
