@@ -175,7 +175,7 @@ def simulate(customers, cashiers, max_queue, close):
             stats["balked"] += 1
     release_until(math.inf)
 
-    duration = stats["end"] if close is None else close
+    duration = stats["end"] if close is None else max(close, stats["end"])
     stats["cashiers"] = [(served_by[i], busy_time[i] / duration if duration > 0 else 0.0)
                          for i in range(cashiers)]
     return stats
