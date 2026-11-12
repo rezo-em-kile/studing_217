@@ -235,6 +235,19 @@ def build_report(stats, seed=None):
     return lines
 
 
+def format_trace(events):
+    """ЧЕРНОВИК: журнал событий симуляции для отладки (--trace). Пока не подключён к main.
+
+    events - список (время, кассир, что произошло). TODO: собирать события в simulate,
+    не замедлив её на сотнях тысяч покупателей.
+    """
+    lines = []
+    for moment, cashier, what in events:
+        who = "очередь" if cashier is None else f"касса {cashier + 1}"
+        lines.append(f"{moment:8.2f}  {who:<10} {what}")
+    return lines
+
+
 def use_utf8_streams():
     for stream in (sys.stdin, sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure") and (stream.encoding or "").lower() not in ("utf-8", "utf8"):
