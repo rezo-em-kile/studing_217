@@ -78,7 +78,6 @@ def test_return_in_time(lib):
     assert lib.loans_of("Иванов") == []
 
 
-@pytest.mark.skip(reason="уточнить у заказчика")
 def test_return_on_last_day_has_no_fine(lib):
     lib.borrow("333", "Иванов", 1)
     assert lib.return_book("333", "Иванов", 15) == 0

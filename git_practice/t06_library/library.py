@@ -59,7 +59,7 @@ class Library:
         if day < start:
             raise LibraryError(f"день возврата {day} раньше дня выдачи {start}")
         del self._loans[(isbn, reader)]
-        overdue = day - start - LOAN_DAYS + 1
+        overdue = day - start - LOAN_DAYS
         return max(overdue, 0) * FINE_PER_DAY
 
     def loans_of(self, reader):
