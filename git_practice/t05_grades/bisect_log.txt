@@ -1,0 +1,12 @@
+# bad: [e3e117fd119dd1784cdc283c9759c3cc75d0e957] docs(t06): ошибки от тестировщиков
+# good: [064f4183132bc9f52cf23f7c77fe62757fe5b6d1] feat(t05): программа «Сводка оценок» с тестами
+git bisect start 'main' 't05-start'
+# bad: [0840b18c5ae80858fec0ba3368bf248d3bc9d26e] docs(t05): формат ведомости в README
+git bisect bad 0840b18c5ae80858fec0ba3368bf248d3bc9d26e
+# good: [938ae74344cb3ddf710fdcc9a15082e4a5aeb4d8] docs(t05): описание average
+git bisect good 938ae74344cb3ddf710fdcc9a15082e4a5aeb4d8
+# bad: [75b98708356b758031a0d40b1c5d18a2749426f7] docs(t05): CHANGELOG
+git bisect bad 75b98708356b758031a0d40b1c5d18a2749426f7
+# bad: [76ef395f7061a5ae8faee1eb53cc757b33c833f2] refactor(t05): упростил вычисление медианы
+git bisect bad 76ef395f7061a5ae8faee1eb53cc757b33c833f2
+# first 'bad' commit: [76ef395f7061a5ae8faee1eb53cc757b33c833f2] refactor(t05): упростил вычисление медианы
