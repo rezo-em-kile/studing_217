@@ -46,7 +46,7 @@ class Library:
         return sorted(isbn for isbn, title in self._titles.items() if query in title.lower())
 
     def borrow(self, isbn, reader, day):
-        if self.available(isbn) < 0:
+        if self.available(isbn) <= 0:
             raise LibraryError(f"нет свободных экземпляров «{self._titles[isbn]}»")
         if (isbn, reader) in self._loans:
             raise LibraryError(f"{reader} уже взял «{self._titles[isbn]}»")
