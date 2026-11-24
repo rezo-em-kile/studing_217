@@ -130,3 +130,262 @@ class Session:
             lines.append((label + "".join(cells)).rstrip())
 
         return "\n".join(lines)
+def parse_seat_coords(token):
+    if ":" not in token:
+        return None
+    r_str, c_str = token.split(":", 1)
+    if not (r_str.isdigit() and c_str.isdigit()):
+        return None
+    r = int(r_str)
+    c = int(c_str)
+    if r <= 0 or c <= 0:
+        return None
+    return r, c
+
+
+def main():
+    if len(sys.argv) != 2:
+        fail_init("ожидается ровно один аргумент: путь к файлу зала", code=2)
+
+    hall_template = load_hall(sys.argv[1])
+    current_time = 0
+    sessions = {}
+    bookings = {}
+    next_booking_id = 1
+
+    try:
+        lines = sys.stdin.read().splitlines()
+    except UnicodeDecodeError:
+        fail_init("входные команды должны быть в кодировке UTF-8", code=1)
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        parts = line.split(None, 1)
+        cmd = parts[0]
+        rest = parts[1].strip() if len(parts) > 1 else ""
+
+        if cmd == "time":
+            if not rest or len(rest.split()) != 1:
+                print("ОШИБКА: неверный формат команды time")
+                continue
+            new_time = parse_time_str(rest)
+            if new_time is None:
+                print(f"ОШИБКА: некорректное время '{rest}'")
+                continue
+            if new_time < current_time:
+                print("ОШИБКА: часы не могут идти назад")
+                continue
+            current_time = new_time
+            for sess in sessions.values():
+                sess.sync(current_time)
+            print(f"Время: {format_time(current_time)}")
+
+        elif cmd == "session":
+            s_parts = rest.split()
+            if len(s_parts) not in (1, 2):
+                print("ОШИБКА: неверный формат команды session")
+                continue
+            s_name = s_parts[0]
+            if s_name in sessions:
+                print(f"ОШИБКА: сеанс {s_name} уже существует")
+                continue
+            start_t = None
+            if len(s_parts) == 2:
+                start_t = parse_time_str(s_parts[1])
+                if start_t is None:
+                    print(f"ОШИБКА: некорректное время начала сеанса '{s_parts[1]}'")
+                    continue
+            sessions[s_name] = Session(s_name, hall_template, start_t)
+            if start_t is None:
+                print(f"Сеанс {s_name} добавлен")
+            else:
+                print(f"Сеанс {s_name} добавлен (начало в {format_time(start_t)})")
+
+        elif cmd == "book":
+            b_parts = rest.split(None, 2)
+            if len(b_parts) < 3:
+                print("ОШИБКА: неверный формат команды book")
+                continue
+            s_name, coords_raw, user = b_parts[0], b_parts[1], b_parts[2].strip()
+            if not user:
+                print("ОШИБКА: не указано имя пользователя")
+                continue
+            if s_name not in sessions:
+                print(f"ОШИБКА: сеанс {s_name} не найден")
+                continue
+
+            sess = sessions[s_name]
+            sess.sync(current_time)
+
+            if sess.start_time is not None and current_time >= sess.start_time:
+                print(f"ОШИБКА: бронирование на сеанс {s_name} закрыто")
+                continue
+
+            coord_tokens = coords_raw.split(",")
+            parsed_coords = []
+            seen_coords = set()
+            valid_batch = True
+            err_msg = ""
+
+            for tok in coord_tokens:
+                if not tok:
+                    valid_batch = False
+                    err_msg = "пустой элемент в списке мест"
+                    break
+                rc = parse_seat_coords(tok)
+                if rc is None:
+                    valid_batch = False
+                    err_msg = f"некорректные координаты '{tok}'"
+                    break
+                r, c = rc
+                if r > len(sess.hall) or c > len(sess.hall[r - 1]):
+                    valid_batch = False
+                    err_msg = f"ряд {r}, место {c} не существует"
+                    break
+                if sess.hall[r - 1][c - 1] == ".":
+                    valid_batch = False
+                    err_msg = f"ряд {r}, место {c} является проходом"
+                    break
+                if rc in seen_coords:
+                    valid_batch = False
+                    err_msg = f"ряд {r}, место {c} указано дважды"
+                    break
+                if rc in sess.occupied:
+                    valid_batch = False
+                    err_msg = f"ряд {r}, место {c} уже забронировано"
+                    break
+                seen_coords.add(rc)
+                parsed_coords.append(rc)
+
+            if not valid_batch:
+                print(f"ОШИБКА: {err_msg}")
+                continue
+
+            for r, c in parsed_coords:
+                seat_type = sess.hall[r - 1][c - 1]
+                price = SEAT_PRICES[seat_type]
+                booking = Booking(next_booking_id, user, s_name, r, c, price, current_time)
+                bookings[next_booking_id] = booking
+                sess.occupied[(r, c)] = booking
+                sess.history.append(booking)
+                print(f"Бронь {next_booking_id}: {user}, сеанс {s_name}, ряд {r}, место {c}, {price} руб. - УСПЕШНО")
+                next_booking_id += 1
+
+        elif cmd == "pay":
+            p_parts = rest.split(None, 1)
+            if len(p_parts) < 2 or not p_parts[0].isdigit():
+                print("ОШИБКА: неверный формат команды pay")
+                continue
+            b_id = int(p_parts[0])
+            user = p_parts[1].strip()
+            if b_id not in bookings:
+                print(f"ОШИБКА: бронь {b_id} не найдена")
+                continue
+            booking = bookings[b_id]
+            sessions[booking.session_name].sync(current_time)
+            if booking.user != user:
+                print(f"ОШИБКА: бронь {b_id} принадлежит другому пользователю")
+                continue
+            if booking.status == "expired":
+                print(f"ОШИБКА: время оплаты брони {b_id} истекло")
+                continue
+            if booking.status == "cancelled":
+                print(f"ОШИБКА: бронь {b_id} уже отменена")
+                continue
+            if booking.status == "paid":
+                print(f"ОШИБКА: бронь {b_id} уже оплачена")
+                continue
+            booking.status = "paid"
+            booking.status_time = current_time
+            print(f"Бронь {b_id} оплачена")
+
+        elif cmd == "cancel":
+            c_parts = rest.split(None, 1)
+            if len(c_parts) < 2 or not c_parts[0].isdigit():
+                print("ОШИБКА: неверный формат команды cancel")
+                continue
+            b_id = int(c_parts[0])
+            user = c_parts[1].strip()
+            if b_id not in bookings:
+                print(f"ОШИБКА: бронь {b_id} не найдена")
+                continue
+            booking = bookings[b_id]
+            sess = sessions[booking.session_name]
+            sess.sync(current_time)
+            if booking.user != user:
+                print(f"ОШИБКА: бронь {b_id} принадлежит другому пользователю")
+                continue
+            if booking.status == "expired":
+                print(f"ОШИБКА: бронь {b_id} уже истекла")
+                continue
+            if booking.status == "cancelled":
+                print(f"ОШИБКА: бронь {b_id} уже отменена")
+                continue
+            booking.status = "cancelled"
+            booking.status_time = current_time
+            key = (booking.row, booking.seat)
+            if sess.occupied.get(key) is booking:
+                del sess.occupied[key]
+            print(f"Бронь {b_id} отменена")
+
+        elif cmd == "show":
+            s_parts = rest.split()
+            if len(s_parts) != 1:
+                print("ОШИБКА: неверный формат команды show")
+                continue
+            s_name = s_parts[0]
+            if s_name not in sessions:
+                print(f"ОШИБКА: сеанс {s_name} не найден")
+                continue
+            sess = sessions[s_name]
+            sess.sync(current_time)
+            print(sess.render_hall())
+
+        elif cmd == "free":
+            s_parts = rest.split()
+            if len(s_parts) != 1:
+                print("ОШИБКА: неверный формат команды free")
+                continue
+            s_name = s_parts[0]
+            if s_name not in sessions:
+                print(f"ОШИБКА: сеанс {s_name} не найден")
+                continue
+            sess = sessions[s_name]
+            sess.sync(current_time)
+            print(f"Свободно мест: {sess.free_seats()} из {sess.total_seats()}")
+
+        elif cmd == "history":
+            s_parts = rest.split()
+            if len(s_parts) != 1:
+                print("ОШИБКА: неверный формат команды history")
+                continue
+            s_name = s_parts[0]
+            if s_name not in sessions:
+                print(f"ОШИБКА: сеанс {s_name} не найден")
+                continue
+            sess = sessions[s_name]
+            sess.sync(current_time)
+            if not sess.history:
+                print("История пуста")
+                continue
+            for b in sess.history:
+                t_created = format_time(b.created_at)
+                if b.status == "active":
+                    st_text = "(активно)"
+                elif b.status == "paid":
+                    st_text = "(оплачено)"
+                elif b.status == "cancelled":
+                    st_text = f"(отменено в {format_time(b.status_time)})"
+                else:
+                    st_text = f"(истекло в {format_time(b.status_time)})"
+                print(f"{t_created} {b.user} -> ряд {b.row}, место {b.seat} {st_text}")
+
+        else:
+            print(f"ОШИБКА: неизвестная команда '{cmd}'")
+
+
+if __name__ == "__main__":
+    main()
