@@ -174,3 +174,142 @@ def generate_customers(seed, minutes, interval, service_min, service_max):
         srv = rng.uniform(service_min, service_max)
         customers.append((t, srv))
     return customers
+def run_simulation(customers, num_cashiers, max_queue, close_time):
+    free_cashiers = list(range(num_cashiers))
+    heapq.heapify(free_cashiers)
+    busy_cashiers = []
+    wait_queue = deque()
+
+    cashier_served = [0 for _ in range(num_cashiers)]
+    cashier_busy_time = [0.0 for _ in range(num_cashiers)]
+
+    total_arrived = 0
+    total_served = 0
+    total_left = 0
+    wait_times = []
+    service_times = []
+    max_q_len = 0
+    last_finish_time = 0.0
+
+    def release_until(target_time):
+        nonlocal total_served, last_finish_time
+        while busy_cashiers:
+            earliest_end, c_idx, srv_dur = busy_cashiers[0]
+            if earliest_end > target_time:
+                break
+            heapq.heappop(busy_cashiers)
+            cashier_served[c_idx] += 1
+            cashier_busy_time[c_idx] += srv_dur
+            total_served += 1
+            if earliest_end > last_finish_time:
+                last_finish_time = earliest_end
+            if wait_queue:
+                arr_t, next_srv = wait_queue.popleft()
+                wait_times.append(earliest_end - arr_t)
+                service_times.append(next_srv)
+                heapq.heappush(busy_cashiers, (earliest_end + next_srv, c_idx, next_srv))
+            else:
+                heapq.heappush(free_cashiers, c_idx)
+
+    for arr_t, srv_dur in customers:
+        if close_time is not None and arr_t >= close_time:
+            break
+        release_until(arr_t)
+        total_arrived += 1
+
+        if num_cashiers == 0:
+            total_left += 1
+            continue
+
+        if free_cashiers:
+            c_idx = heapq.heappop(free_cashiers)
+            wait_times.append(0.0)
+            service_times.append(srv_dur)
+            heapq.heappush(busy_cashiers, (arr_t + srv_dur, c_idx, srv_dur))
+        else:
+            if max_queue is not None and len(wait_queue) >= max_queue:
+                total_left += 1
+            else:
+                wait_queue.append((arr_t, srv_dur))
+                if len(wait_queue) > max_q_len:
+                    max_q_len = len(wait_queue)
+
+    release_until(float("inf"))
+
+    work_duration = last_finish_time
+
+    return {
+        "total_arrived": total_arrived,
+        "total_served": total_served,
+        "total_left": total_left,
+        "wait_times": wait_times,
+        "service_times": service_times,
+        "max_q_len": max_q_len,
+        "cashier_served": cashier_served,
+        "cashier_busy_time": cashier_busy_time,
+        "work_duration": work_duration,
+    }
+
+
+def main():
+    _, *raw_args = sys.argv
+    cfg = parse_args(raw_args)
+    if cfg["seed"] is not None:
+        customers = generate_customers(
+            cfg["seed"],
+            cfg["minutes"],
+            cfg["interval"],
+            cfg["service_min"],
+            cfg["service_max"],
+        )
+        close_t = cfg["minutes"]
+        print(f"Результаты симуляции (семя: {cfg['seed']}):")
+    else:
+        customers = read_customers_stdin()
+        close_t = cfg["close_time"]
+        print("Результаты симуляции:")
+
+    stats = run_simulation(customers, cfg["cashiers"], cfg["max_queue"], close_t)
+
+    arrived = stats["total_arrived"]
+    served = stats["total_served"]
+    left = stats["total_left"]
+    waits = stats["wait_times"]
+    srvs = stats["service_times"]
+
+    avg_wait = (sum(waits) / len(waits)) if waits else 0.0
+    max_wait = max(waits) if waits else 0.0
+    min_wait = min(waits) if waits else 0.0
+    avg_srv = (sum(srvs) / len(srvs)) if srvs else 0.0
+    max_q = stats["max_q_len"]
+
+    print()
+    print("Общая статистика:")
+    print(f"  Всего пришло покупателей: {format_int(arrived)}")
+    print(f"  Обслужено покупателей: {format_int(served)}")
+    print(f"  Ушло из-за длинной очереди: {format_int(left)}")
+    print()
+    print("Время ожидания:")
+    print(f"  Среднее время ожидания: {avg_wait:.1f} мин")
+    print(f"  Максимальное время ожидания: {max_wait:.1f} мин")
+    print(f"  Минимальное время ожидания: {min_wait:.1f} мин")
+    print()
+    print("Очередь:")
+    q_word = plural_ru(max_q, "человек", "человека", "человек")
+    print(f"  Максимальная длина очереди: {format_int(max_q)} {q_word}")
+    print(f"  Среднее время обслуживания: {avg_srv:.1f} мин на покупателя")
+    print()
+    print("Загрузка кассиров:")
+    if cfg["cashiers"] == 0:
+        print("  кассиров нет")
+    else:
+        dur = stats["work_duration"]
+        for idx in range(cfg["cashiers"]):
+            c_cnt = stats["cashier_served"][idx]
+            c_word = plural_ru(c_cnt, "покупателя", "покупателей", "покупателей")
+            load_pct = (stats["cashier_busy_time"][idx] / dur * 100.0) if dur > 0 else 0.0
+            print(f"  Кассир {idx + 1}: обслужил {format_int(c_cnt)} {c_word}, загрузка {load_pct:.0f}%")
+
+
+if __name__ == "__main__":
+    main()
