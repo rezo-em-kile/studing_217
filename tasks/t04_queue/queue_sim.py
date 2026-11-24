@@ -61,9 +61,15 @@ def parse_args(argv):
     interval = 0.5
     service_min = 2.0
     service_max = 5.0
+    seen_flags = set()
+    random_only_used = False
 
     it = iter(argv)
     for arg in it:
+        if arg in seen_flags:
+            fail_init(f"повторяющийся параметр '{arg}'", code=2)
+        seen_flags.add(arg)
+
         if arg == "--cashiers":
             val_raw = next(it, None)
             if val_raw is None:
@@ -95,11 +101,13 @@ def parse_args(argv):
             if val_raw is None:
                 fail_init("не указано значение для --minutes", code=2)
             minutes = parse_pos_float(val_raw, "--minutes", allow_zero=True)
+            random_only_used = True
         elif arg == "--interval":
             val_raw = next(it, None)
             if val_raw is None:
                 fail_init("не указано значение для --interval", code=2)
             interval = parse_pos_float(val_raw, "--interval", allow_zero=False)
+            random_only_used = True
         elif arg == "--service":
             val_raw = next(it, None)
             if val_raw is None:
@@ -108,12 +116,16 @@ def parse_args(argv):
             if len(parts) != 2:
                 fail_init("параметр --service должен иметь формат МИН-МАКС", code=2)
             s_min_str, s_max_str = parts
-            service_min = parse_pos_float(s_min_str, "--service (мин)", allow_zero=True)
-            service_max = parse_pos_float(s_max_str, "--service (макс)", allow_zero=True)
+            service_min = parse_pos_float(s_min_str, "--service (мин)", allow_zero=False)
+            service_max = parse_pos_float(s_max_str, "--service (макс)", allow_zero=False)
             if service_min > service_max:
                 fail_init("минимальное время обслуживания больше максимального", code=2)
+            random_only_used = True
         else:
             fail_init(f"неизвестный параметр '{arg}'", code=2)
+
+    if seed is None and random_only_used:
+        fail_init("параметры --minutes, --interval и --service требуют --seed", code=2)
 
     if seed is not None and close_time is not None:
         fail_init("параметр --close недопустим в режиме генерации (--seed)", code=2)
@@ -128,8 +140,6 @@ def parse_args(argv):
         "service_min": service_min,
         "service_max": service_max,
     }
-
-
 def read_customers_stdin():
     customers = []
     try:
@@ -152,11 +162,11 @@ def read_customers_stdin():
             fail_init(f"строка {line_num}: некорректный формат числа", code=1)
         if math.isnan(arrival) or math.isinf(arrival) or math.isnan(service) or math.isinf(service):
             fail_init(f"строка {line_num}: числа должны быть конечными", code=1)
-        if arrival < 0 or service < 0:
-            fail_init(f"строка {line_num}: время не может быть отрицательным", code=1)
+        if arrival < 0 or service <= 0:
+            fail_init(f"строка {line_num}: время прихода должно быть >= 0, обслуживания > 0", code=1)
         customers.append((arrival, len(customers), service))
 
-    customers.sort(key=lambda item: (item.real if hasattr(item, "real") else item.__getitem__(0), item.__getitem__(1)))
+    customers.sort(key=lambda item: (item.__getitem__(0), item.__getitem__(1)))
     return [(arr, srv) for arr, _, srv in customers]
 
 
