@@ -36,16 +36,20 @@ def format_time(minutes):
 
 def load_hall(path):
     rows = []
+    seat_count = 0
     try:
-        with open(path, encoding="utf-8") as f:
-            for line_num, raw_line in enumerate(f, start=1):
+        with open(path, encoding="utf-8-sig") as f:
+            for raw_line in f:
                 stripped = raw_line.strip()
                 if not stripped:
                     continue
+                row_num = len(rows) + 1
                 row_seats = []
                 for ch in stripped:
                     if ch not in SEAT_PRICES and ch != ".":
-                        fail_init(f"строка {line_num}: недопустимый символ места '{ch}'", code=1)
+                        fail_init(f"ряд {row_num}: недопустимый символ места '{ch}'", code=1)
+                    if ch != ".":
+                        seat_count += 1
                     row_seats.append(ch)
                 rows.append(row_seats)
     except OSError:
@@ -53,10 +57,11 @@ def load_hall(path):
     except UnicodeDecodeError:
         fail_init(f"файл зала '{path}' должен быть в кодировке UTF-8", code=1)
 
-    if not rows:
-        fail_init("файл зала не содержит ни одного ряда", code=1)
+    if not rows or seat_count == 0:
+        fail_init("файл зала не содержит ни одного места", code=1)
 
     return rows
+
 
 
 class Booking:
@@ -381,7 +386,8 @@ def main():
                     st_text = f"(отменено в {format_time(b.status_time)})"
                 else:
                     st_text = f"(истекло в {format_time(b.status_time)})"
-                print(f"{t_created} {b.user} -> ряд {b.row}, место {b.seat} {st_text}")
+                print(f"  {t_created} {b.user} \u2192 ряд {b.row}, место {b.seat} {st_text}")
+
 
         else:
             print(f"ОШИБКА: неизвестная команда '{cmd}'")
