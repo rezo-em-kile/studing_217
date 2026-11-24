@@ -62,50 +62,49 @@ def parse_args(argv):
     service_min = 2.0
     service_max = 5.0
 
-    i = 0
-    while i < len(argv):
-        arg = argv[i]
+    it = iter(argv)
+    for arg in it:
         if arg == "--cashiers":
-            if i + 1 >= len(argv):
+            val_raw = next(it, None)
+            if val_raw is None:
                 fail_init("не указано значение для --cashiers", code=2)
-            cashiers = parse_non_neg_int(argv[i + 1], "--cashiers")
-            i += 2
+            cashiers = parse_non_neg_int(val_raw, "--cashiers")
         elif arg == "--max-queue":
-            if i + 1 >= len(argv):
+            val_raw = next(it, None)
+            if val_raw is None:
                 fail_init("не указано значение для --max-queue", code=2)
-            val_str = argv[i + 1]
-            if val_str.lower() == "none":
+            if val_raw.lower() == "none":
                 max_queue = None
             else:
-                max_queue = parse_non_neg_int(val_str, "--max-queue")
-            i += 2
+                max_queue = parse_non_neg_int(val_raw, "--max-queue")
         elif arg == "--close":
-            if i + 1 >= len(argv):
+            val_raw = next(it, None)
+            if val_raw is None:
                 fail_init("не указано значение для --close", code=2)
-            close_time = parse_pos_float(argv[i + 1], "--close", allow_zero=True)
-            i += 2
+            close_time = parse_pos_float(val_raw, "--close", allow_zero=True)
         elif arg == "--seed":
-            if i + 1 >= len(argv):
+            val_raw = next(it, None)
+            if val_raw is None:
                 fail_init("не указано значение для --seed", code=2)
             try:
-                seed = int(argv[i + 1])
+                seed = int(val_raw)
             except ValueError:
                 fail_init("параметр --seed должен быть целым числом", code=2)
-            i += 2
         elif arg == "--minutes":
-            if i + 1 >= len(argv):
+            val_raw = next(it, None)
+            if val_raw is None:
                 fail_init("не указано значение для --minutes", code=2)
-            minutes = parse_pos_float(argv[i + 1], "--minutes", allow_zero=True)
-            i += 2
+            minutes = parse_pos_float(val_raw, "--minutes", allow_zero=True)
         elif arg == "--interval":
-            if i + 1 >= len(argv):
+            val_raw = next(it, None)
+            if val_raw is None:
                 fail_init("не указано значение для --interval", code=2)
-            interval = parse_pos_float(argv[i + 1], "--interval", allow_zero=False)
-            i += 2
+            interval = parse_pos_float(val_raw, "--interval", allow_zero=False)
         elif arg == "--service":
-            if i + 1 >= len(argv):
+            val_raw = next(it, None)
+            if val_raw is None:
                 fail_init("не указано значение для --service", code=2)
-            parts = argv[i + 1].split("-")
+            parts = val_raw.split("-")
             if len(parts) != 2:
                 fail_init("параметр --service должен иметь формат МИН-МАКС", code=2)
             s_min_str, s_max_str = parts
@@ -113,7 +112,6 @@ def parse_args(argv):
             service_max = parse_pos_float(s_max_str, "--service (макс)", allow_zero=True)
             if service_min > service_max:
                 fail_init("минимальное время обслуживания больше максимального", code=2)
-            i += 2
         else:
             fail_init(f"неизвестный параметр '{arg}'", code=2)
 
@@ -158,7 +156,7 @@ def read_customers_stdin():
             fail_init(f"строка {line_num}: время не может быть отрицательным", code=1)
         customers.append((arrival, len(customers), service))
 
-    customers.sort(key=lambda item: (item[0], item[1]))
+    customers.sort(key=lambda item: (item.real if hasattr(item, "real") else item.__getitem__(0), item.__getitem__(1)))
     return [(arr, srv) for arr, _, srv in customers]
 
 
@@ -194,7 +192,8 @@ def run_simulation(customers, num_cashiers, max_queue, close_time):
     def release_until(target_time):
         nonlocal total_served, last_finish_time
         while busy_cashiers:
-            earliest_end, c_idx, srv_dur = busy_cashiers[0]
+            top_item = next(iter(busy_cashiers))
+            earliest_end, c_idx, srv_dur = top_item
             if earliest_end > target_time:
                 break
             heapq.heappop(busy_cashiers)
@@ -236,7 +235,7 @@ def run_simulation(customers, num_cashiers, max_queue, close_time):
 
     release_until(float("inf"))
 
-    work_duration = last_finish_time
+    work_duration = max(close_time, last_finish_time) if close_time is not None else last_finish_time
 
     return {
         "total_arrived": total_arrived,
