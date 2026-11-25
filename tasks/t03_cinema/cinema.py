@@ -374,18 +374,14 @@ def main() -> int:
     hall = load_hall(args[0])
     system = CinemaSystem(hall)
 
-    text = sys.stdin.read()
-    if text.startswith("\ufeff"):
-        text = text[1:]
-
-    out: list[str] = []
-    for raw_line in text.splitlines():
+    for line_no, raw_line in enumerate(sys.stdin, 1):
+        if line_no == 1 and raw_line.startswith("\ufeff"):
+            raw_line = raw_line[1:]
         if not raw_line.strip():
             continue
-        out.extend(system.execute_line(raw_line))
+        for out_line in system.execute_line(raw_line):
+            print(out_line)
 
-    if out:
-        sys.stdout.write("\n".join(out) + "\n")
     return 0
 
 
