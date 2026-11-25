@@ -86,6 +86,7 @@ def parse_part(part: str, expected_keyword: str) -> str:
 def parse_schedule(lines) -> list[dict]:
     # Читает и валидирует расписание без регулярных выражений
     trains = []
+    seen_names = set()
 
     for line_num, raw_line in enumerate(lines, start=1):
         line = raw_line.strip()
@@ -94,18 +95,23 @@ def parse_schedule(lines) -> list[dict]:
 
         # Делим по первому двоеточию (название поезда двоеточий не содержит)
         if ":" not in line:
-            raise ValueError(f"Строка {line_num}: отсутствует двоеточие -> '{line}'")
+            raise ValueError(f"строка {line_num}: отсутствует двоеточие -> '{line}'")
 
         name_part, rest = line.split(":", 1)
         name = name_part.strip()
         if not name:
-            raise ValueError(f"Строка {line_num}: пустое название поезда")
+            raise ValueError(f"строка {line_num}: пустое название поезда")
+        if name in seen_names:
+            raise ValueError(
+                f"строка {line_num} ({name}): повторяющееся название поезда"
+            )
+        seen_names.add(name)
 
         # Делим оставшуюся часть по запятой на прибытие и отправление
         times_parts = rest.split(",")
         if len(times_parts) != 2:
             raise ValueError(
-                f"Строка {line_num}: неверный разделитель запятая -> '{line}'"
+                f"строка {line_num}: неверный разделитель запятая -> '{line}'"
             )
 
         try:
@@ -115,7 +121,7 @@ def parse_schedule(lines) -> list[dict]:
             dep_min, dep_fmt = parse_time(dep_str, is_departure=True)
         except ValueError as err:
             raise ValueError(
-                f"Строка {line_num}: {err}"
+                f"строка {line_num} ({name}): {err}"
             ) from None  # frome None скрывает трассировку
 
         actual_dep_min = dep_min + (24 * 60 if dep_min < arr_min else 0)
@@ -123,11 +129,11 @@ def parse_schedule(lines) -> list[dict]:
 
         if duration == 0:
             raise ValueError(
-                f"Строка {line_num} ({name}): стоянка не может быть нулевой"
+                f"cтрока {line_num} ({name}): стоянка не может быть нулевой"
             )
         if duration > 120:
             raise ValueError(
-                f"Строка {line_num} ({name}): стоянка превышает 2 часа ({duration} мин)"
+                f"cтрока {line_num} ({name}): стоянка превышает 2 часа ({duration} мин)"
             )
         trains.append(
             {
@@ -182,12 +188,14 @@ def assign_platforms(
 
 
 def main():
-    try:
-        if len(sys.argv) > 2:
-            raise ValueError(
-                "Слишком много аргументов. Использование: python trains.py [schedule.txt]"
-            )
 
+    if len(sys.argv) > 2:
+        print(
+            "Ошибка: слишком много аргументов. Использование: python trains.py [schedule.txt]",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    try:
         if len(sys.argv) == 2:
             with open(sys.argv[1], "r", encoding="utf-8") as file:
                 trains = parse_schedule(file)
@@ -207,11 +215,16 @@ def main():
     except FileNotFoundError:
         print(f"Ошибка: файл '{sys.argv[1]}' не найден.", file=sys.stderr)
         sys.exit(1)
+    except OSError as err:
+        print(
+            f"Ошибка: не удалось прочитать файл '{sys.argv[1]}': {err}", file=sys.stderr
+        )
+        sys.exit(1)
     except UnicodeDecodeError:
         print("Ошибка: файл должен быть в кодировке UTF-8.", file=sys.stderr)
         sys.exit(1)
     except ValueError as err:
-        print(f"Ошибка входных данных: {err}", file=sys.stderr)
+        print(f"Ошибка: {err}", file=sys.stderr)
         sys.exit(1)
 
 
